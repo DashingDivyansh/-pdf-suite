@@ -1,0 +1,6 @@
+tkinterdnd2
+pyinstaller
+PyMuPDF
+Pillow
+ocrmypdf
+platformdirs

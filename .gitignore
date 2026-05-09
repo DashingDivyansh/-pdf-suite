@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+
+.venv/
+venv/
+env/
+
+logs/
+output/
+temp/
+out.pdf
+settings.json
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Agent / Tooling
+graphify-out/
+report.txt
+plan.txt
+deployplan.txt
+*.log
+
+# PyInstaller
+build/
+dist/
+*.spec
