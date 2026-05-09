@@ -1,7 +1,13 @@
-# pdf_tool Architecture and Development Guidelines
+# pdf-suite Architecture and Development Guidelines
 
 ## Project Context
-This is a dual-mode (CLI and GUI) PDF utility packaged as a standalone executable using PyInstaller. It relies heavily on external binaries (Ghostscript, QPDF, Tesseract via ocrmypdf).
+**pdf-suite** (formerly PDF Tool) is a dual-mode (CLI and GUI) PDF utility packaged as a standalone executable using PyInstaller.
+
+### Current Status (May 2026)
+- **Live on GitHub:** [https://github.com/DashingDivyansh/-pdf-suite](https://github.com/DashingDivyansh/-pdf-suite)
+- **Licensing:** MIT License added.
+- **Documentation:** README and Project Map have been overhauled for GitHub.
+- **GUI Limitations:** GUI Merge ranges are NOT yet implemented; documentation has been updated to reflect this limitation.
 
 ## Critical Architectural Rules
 
