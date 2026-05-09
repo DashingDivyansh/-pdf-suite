@@ -146,13 +146,13 @@ The GUI supports:
 - drag and drop PDF loading
 - selected file list
 - remove, clear, move up, and move down controls
-- drag-to-reorder in the selected file list
+- select_output selection
 - merge, compress, and OCR actions (primary row); output folder and cancel on the second row
 - output folder selection
 - compression level selection
-- optional page-range prompts when you choose Merge
 - password prompt only when an encrypted PDF is detected
 - PDF Info dialog for the selected file
+
 - open output folder
 - save log
 - overwrite confirmation
@@ -160,20 +160,6 @@ The GUI supports:
 - compression result summaries
 - cancellation for running compression tasks
 - **batch presets**: choose compression level and tick **Include OCR (for new presets)** to capture “compress” or “compress + OCR”; use **Save Preset…**, then load PDFs and **Run Preset**. Outputs use `processed_{name}.pdf` in your output folder. Presets are stored in settings and persist across restarts.
-
-Page range examples:
-
-- `1-3`
-- `5`
-- `2-4,8,10-12`
-
-For merge ranges in the GUI, separate each file's ranges with `|`, for example:
-
-```text
-1-3|2,5-7|
-```
-
-The empty final range means the third file uses all pages.
 
 ## Build EXE
 
