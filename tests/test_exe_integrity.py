@@ -46,7 +46,38 @@ class TestExecutableIntegrity(unittest.TestCase):
         # Should output True or False
         self.assertIn("True", res.stdout)
 
-    def test_exe_compress_dry_run(self):
+    def test_executable_can_successfully_initialize_ocr_engine_without_runtime_errors(self):
+        """Verify the exe can run the 'ocr' command (Full OCR import check)."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            res = self.run_exe(["ocr", str(SAMPLE_PDF), "--out-dir", tmp])
+            # We don't necessarily need Tesseract to be perfect, 
+            # but we MUST not see an ImportError or TypeError
+            self.assertNotIn("ImportError", res.stderr)
+            self.assertNotIn("TypeError", res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+
+    def test_executable_successfully_processes_complex_chained_workflow_of_merge_and_compress(self):
+        """Verify a complex workflow: merge + compress (via CLI logic)."""
+        # Note: main.py CLI doesn't chain all in one command, 
+        # but ui/app.py logic does. We verify they can be run sequentially.
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            merged = tmp_path / "merged.pdf"
+            compressed = tmp_path / "final.pdf"
+            
+            # 1. Merge
+            res = self.run_exe(["merge", str(SAMPLE_PDF), str(SAMPLE_PDF), "-o", str(merged)])
+            self.assertEqual(res.returncode, 0, f"Merge failed: {res.stderr}")
+            self.assertTrue(merged.exists())
+            
+            # 2. Compress the merged result
+            res = self.run_exe(["compress", str(merged), "-o", str(compressed), "--level", "3"])
+            self.assertEqual(res.returncode, 0, f"Compress failed: {res.stderr}")
+            self.assertTrue(compressed.exists())
+
+    def test_executable_can_successfully_dispatch_compression_task_to_ghostscript(self):
         """Verify the exe can build a compress command (Ghostscript check)."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:

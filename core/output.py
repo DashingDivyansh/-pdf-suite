@@ -9,7 +9,13 @@ def render_template(template, input_file, **values):
         "ext": path.suffix.lstrip(".") or "pdf",
     }
     base_values.update(values)
-    filename = template.format(**base_values)
+    
+    try:
+        filename = template.format(**base_values)
+    except (KeyError, IndexError, ValueError):
+        # Fallback for invalid templates: use {name} if possible, else original basename
+        filename = base_values.get("name", path.name)
+        
     return filename if filename.lower().endswith(".pdf") else f"{filename}.pdf"
 
 

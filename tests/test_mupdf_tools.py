@@ -3,9 +3,9 @@ from unittest.mock import patch, MagicMock
 from core.mupdf_tools import has_text
 
 class MuPDFToolsTests(unittest.TestCase):
-    @patch("core.mupdf_tools.fitz.open")
+    @patch("fitz.open")
     @patch("core.mupdf_tools.validate_pdf_file", return_value=None)
-    def test_has_text_samples_middle_and_end(self, _val, mock_open):
+    def test_has_text_successfully_samples_document_pages_to_detect_selectable_text(self, _val, mock_open):
         # Mock a 10 page document
         mock_doc = MagicMock()
         mock_doc.__len__.return_value = 10
@@ -37,9 +37,9 @@ class MuPDFToolsTests(unittest.TestCase):
         self.assertIn(0, calls)
         self.assertIn(5, calls)
 
-    @patch("core.mupdf_tools.fitz.open")
+    @patch("fitz.open")
     @patch("core.mupdf_tools.validate_pdf_file", return_value=None)
-    def test_has_text_returns_false_if_all_sampled_empty(self, _val, mock_open):
+    def test_has_text_returns_false_when_all_sampled_pages_are_empty(self, _val, mock_open):
         mock_doc = MagicMock()
         mock_doc.__len__.return_value = 3
         page = MagicMock()

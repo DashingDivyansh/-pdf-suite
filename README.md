@@ -17,8 +17,10 @@ The app uses Python as the orchestration layer and delegates PDF work to native 
 - Merge selected page ranges from PDFs
 - Compress one PDF or a batch of PDFs
 - Smart OCR logic: Automatically skips OCR if a file already contains searchable text
+- GUI performance profiles: `fast`, `balanced`, and `quality`
 - Drag and drop files in the desktop UI
 - First-page thumbnail when you select a file in the list
+- Workspace-oriented GUI with a larger file table, preview panel, workflow panel, and queue snapshot
 - Reorder selected files for merge
 - Drag files in the list to reorder them
 - Remove or clear selected files
@@ -29,6 +31,7 @@ The app uses Python as the orchestration layer and delegates PDF work to native 
 - Save recent files and output folder
 - Confirm before overwriting output files
 - Save the progress log
+- Activity log plus status/progress footer for long-running jobs
 - Open the output folder
 - Prompt for a password only when an encrypted PDF is detected
 - Cancel a running compression task
@@ -150,6 +153,7 @@ The GUI supports:
 - merge, compress, and OCR actions (primary row); output folder and cancel on the second row
 - output folder selection
 - compression level selection
+- performance profile selection
 - password prompt only when an encrypted PDF is detected
 - PDF Info dialog for the selected file
 
@@ -159,7 +163,27 @@ The GUI supports:
 - recent output folder and selected files
 - compression result summaries
 - cancellation for running compression tasks
+- lazy page-count loading for faster large file drops
 - **batch presets**: choose compression level and tick **Include OCR (for new presets)** to capture “compress” or “compress + OCR”; use **Save Preset…**, then load PDFs and **Run Preset**. Outputs use `processed_{name}.pdf` in your output folder. Presets are stored in settings and persist across restarts.
+
+### Performance Notes
+
+- The app is CPU-bound and does not currently use GPU acceleration.
+- The GUI now loads file rows first and fills page counts asynchronously, which improves responsiveness when many PDFs are added at once.
+- Repeated operations on unchanged files benefit from lightweight session caches for page count, encryption checks, text detection, and file hashing.
+- Use the GUI performance profiles based on workload:
+  - `fast`: highest throughput for batch jobs
+  - `balanced`: recommended default
+  - `quality`: lower parallelism and lower system pressure
+- The current GUI uses a more structured dark workspace layout with live file-count and total-size badges, a queue snapshot, and clearer action summaries.
+
+### EXE Logging
+
+When running the packaged Windows EXE, logs are written to the user log directory rather than the repo `logs/` folder:
+
+```text
+C:\Users\Divyansh\AppData\Local\Divyansh\PDFTool\Logs\pdf_tool.log
+```
 
 ## Build EXE
 
@@ -198,6 +222,9 @@ Optional integration tests can run real qpdf and Ghostscript operations when the
 $env:PDF_TOOL_RUN_INTEGRATION = "1"
 python -m unittest tests.test_integration_optional
 ```
+
+The packaged-app smoke tests in `tests/test_exe_integrity.py` are important for catching frozen OCR and PyInstaller regressions.
+The full unit suite currently passes with `python -m unittest discover -s tests` on the local test machine.
 
 ## Project Structure
 

@@ -8,6 +8,8 @@
 - **Licensing:** MIT License added.
 - **Documentation:** README and Project Map have been overhauled for GitHub.
 - **GUI Limitations:** GUI Merge ranges are NOT yet implemented; documentation has been updated to reflect this limitation.
+- **UI Update:** Desktop UI now uses a structured workspace layout with preview, workflow, queue snapshot, and activity log panels.
+- **Tests:** `python -m unittest discover -s tests` passes on the current local test machine.
 
 ## Critical Architectural Rules
 
@@ -22,8 +24,28 @@
 
 ### 2. Subprocess Window Suppression (Windows)
 - When packaged as a frozen GUI app (`--noconsole`), external tools called via `subprocess` (like Tesseract or Ghostscript) will pop up empty terminal windows.
-- **Enforcement:** `subprocess.Popen` is globally monkey-patched in `core/executor.py` to inject the `CREATE_NO_WINDOW` (`0x08000000`) flag when `sys.platform == "win32"` and `sys.frozen` is true. Ensure `core/executor.py` is imported early in the application lifecycle.
+- **Enforcement:** `subprocess.Popen` is globally monkey-patched in `core/executor.py` to inject the `CREATE_NO_WINDOW` (`0x08000000`) flag when `sys.platform == "win32"` and `sys.frozen` is true.
+- **Thread Safety:** `CancellableCommand` uses a background thread for non-blocking I/O reading to prevent UI hangs.
+
+### 2.1 UI and High-DPI
+- **DPI Awareness:** The application calls `SetProcessDpiAwareness(1)` on Windows to ensure sharp text on high-resolution displays.
+- **Design System:** Use the spacing scale (`SPACE_XS` to `SPACE_XL`) and typography hierarchy (`FONT_H1`, etc.) defined in `ui/app.py`.
+- **Keyboard Shortcuts:** Maintain `Ctrl+O` (Add), `Ctrl+Enter` (Process), and `Esc` (Cancel) support.
+
+### 2.2 Pipeline Architecture
+- **Step Isolation:** New PDF operations must be implemented as subclasses of `PipelineStep` in `core/pipeline.py`.
+- **Intermediates:** `PipelineRunner` handles `tempfile.TemporaryDirectory` and `ExitStack` for intermediate files between steps. Do not manually manage temp files for multi-step jobs in the UI.
 
 ### 3. Concurrency and File Handling
-- **Cache Manifests:** The cache uses a JSON manifest. Because the app uses parallel processing, cache updates must be protected by atomic, directory-based locking (see `ManifestLock` in `core/cache.py`) with stale lock recovery to prevent deadlocks.
-- **Cleanup:** Always use `try...finally` blocks to track and delete intermediate temporary files if a multi-step operation fails or is canceled. The custom `CancellableCommand` wrapper supports automatic cleanup via an `output_path` parameter.
+- **Cache Sharding:** The cache uses a sharded manifest (`manifests/shard_xx.json`) based on the first 2 characters of the file hash.
+- **Fast Hashing:** Initial cache checks use a fast hash (stat info + first/last 8KB) to avoid reading massive PDFs.
+- **Corruption Recovery:** `_load_manifest` automatically resets corrupt or empty shards.
+
+### 4. Performance Rules
+- The app is CPU-bound; do not assume GPU acceleration exists.
+- Large file drops in the GUI should stay responsive. `ui/app.py` now loads page counts asynchronously instead of blocking on `qpdf --show-npages` for every file.
+- Favor stat-based/session caches before expensive full-file work:
+  - `core/cache.py`: file hash cache
+  - `core/info.py`: page count and encryption caches
+  - `core/mupdf_tools.py`: text-detection cache
+- Parallelism should be tuned, not maximized blindly. Use the `fast`, `balanced`, and `quality` profiles in `core/compress.py` and `ui/app.py` instead of hardcoding all CPUs everywhere.

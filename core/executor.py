@@ -1,11 +1,14 @@
+import os
 import subprocess
 import sys
+import threading
 from core.logger import get_logger
 
 logger = get_logger(__name__)
 
 # Prevent console window flash on Windows
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+_ORIGINAL_POPEN = subprocess.Popen
 
 
 def patch_subprocess():
@@ -15,16 +18,16 @@ def patch_subprocess():
     tools (like Tesseract or Ghostscript) from popping up terminal windows.
     """
     if sys.platform == "win32" and getattr(sys, "frozen", False):
-        import subprocess
+        if subprocess.Popen is not _ORIGINAL_POPEN:
+            return
 
-        _original_popen = subprocess.Popen
+        class NoWindowPopen(_ORIGINAL_POPEN):
+            def __init__(self, *args, **kwargs):
+                kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_NO_WINDOW
+                super().__init__(*args, **kwargs)
 
-        def patched_popen(*args, **kwargs):
-            kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_NO_WINDOW
-            return _original_popen(*args, **kwargs)
-
-        subprocess.Popen = patched_popen
-        logger.info("Subprocess Popen monkey-patched for window suppression.")
+        subprocess.Popen = NoWindowPopen
+        logger.info("Subprocess Popen monkey-patched with subclass for window suppression.")
 
 
 # Apply the patch immediately if imported in a frozen Windows app
@@ -51,30 +54,38 @@ class CancellableCommand:
             )
             
             output_lines = []
-            for line in iter(self.process.stdout.readline, ''):
-                if line:
-                    output_lines.append(line)
-                    if progress_callback:
-                        progress_callback(line.strip())
             
-            returncode = self.process.wait()
+            def reader():
+                try:
+                    for line in iter(self.process.stdout.readline, ''):
+                        if line:
+                            output_lines.append(line)
+                            if progress_callback:
+                                progress_callback(line.strip())
+                except Exception:
+                    pass
+
+            read_thread = threading.Thread(target=reader, daemon=True)
+            read_thread.start()
+            
+            while self.process.poll() is None:
+                if self.cancelled:
+                    self.process.terminate()
+                    self._cleanup_output()
+                    return "CANCELLED"
+                threading.Event().wait(0.1)
+
+            returncode = self.process.returncode
 
             if returncode == 0:
                 return "SUCCESS"
 
-            if self.cancelled:
-                self._cleanup_output()
-                return "CANCELLED"
-
-            if returncode != 0:
-                self._cleanup_output()
-                error_msg = "".join(output_lines).strip() or "Unknown error"
-                if len(error_msg) > 500:
-                    error_msg = error_msg[:500] + "..."
-                logger.error(f"Command failed with {self.process.returncode}: {error_msg} | CMD: {cmd}")
-                return f"ERROR: {error_msg}"
-
-            return "SUCCESS"
+            self._cleanup_output()
+            error_msg = "".join(output_lines).strip() or "Unknown error"
+            if len(error_msg) > 500:
+                error_msg = error_msg[:500] + "..."
+            logger.error(f"Command failed with {returncode}: {error_msg} | CMD: {cmd}")
+            return f"ERROR: {error_msg}"
 
         except FileNotFoundError:
             logger.error(f"Command not found: {cmd}")
@@ -103,7 +114,6 @@ class CancellableCommand:
     def _cleanup_output(self):
         if self.output_path and os.path.exists(self.output_path):
             try:
-                import os
                 os.remove(self.output_path)
                 logger.info(f"Cleaned up partial output file: {self.output_path}")
             except Exception as e:

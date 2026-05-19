@@ -3,12 +3,15 @@ import sys
 
 from config import DEFAULT_OUTPUT_DIR
 from core.cache import get_cached_result, save_to_cache
+from core.logger import get_logger
 from core.output import output_path
 from core.validation import validate_pdf_file
 from core.executor import run_command
 
+logger = get_logger(__name__)
 
-def ocr_pdf(input_file, output_dir=DEFAULT_OUTPUT_DIR, output_template="ocr_{name}.pdf", progress_callback=None, runner=None, password=None):
+
+def ocr_pdf(input_file, output_dir=DEFAULT_OUTPUT_DIR, output_template="ocr_{name}.pdf", progress_callback=None, runner=None, password=None, threads=None):
     input_error = validate_pdf_file(input_file)
     if input_error:
         return f"ERROR: {input_error}"
@@ -27,8 +30,14 @@ def ocr_pdf(input_file, output_dir=DEFAULT_OUTPUT_DIR, output_template="ocr_{nam
             except Exception:
                 pass
 
-        # If frozen (EXE), use the API directly to avoid subprocess issues with sys.executable
+        cpu_count = threads if threads is not None else (os.cpu_count() or 2)
+
+        # If frozen (EXE), use the API directly
         if getattr(sys, 'frozen', False):
+            # We avoid stubbing unittest.mock here because it's too risky and 
+            # causes "cannot import name patch" elsewhere. 
+            # Instead, we rely on the fact that ocrmypdf's use of mock is minimal.
+            # If the asyncio bug persists, we will use a more surgical approach.
             import ocrmypdf
             from config import TESSERACT_PATH, GS_PATH
             
@@ -46,22 +55,30 @@ def ocr_pdf(input_file, output_dir=DEFAULT_OUTPUT_DIR, output_template="ocr_{nam
                 os.environ["PATH"] = os.pathsep.join(paths_to_add) + os.pathsep + current_path
 
             try:
-                # ocrmypdf.ocr is the high-level API
+                # Use jobs=1 in frozen mode to avoid pickling/multiprocessing errors
+                # that cause "function() argument 'code' must be code, not str"
                 exit_code = ocrmypdf.ocr(
                     input_file, 
                     output_file, 
                     skip_text=True, 
                     optimize=1, 
                     output_type="pdf", 
-                    jobs=os.cpu_count() or 2,
-                    fast_web_view=0, # OCR version of fast
-                    password=password
+                    jobs=1,
+                    use_threads=True,
+                    fast_web_view=0,
+                    password=password,
+                    tesseract_oem=1
                 )
                 if exit_code == 0 or exit_code == ocrmypdf.ExitCode.ok:
                     save_to_cache(input_file, "ocr", {"password": password}, output_file)
                     return "SUCCESS"
                 return f"ERROR: ocrmypdf exit code {exit_code}"
             except Exception as e:
+                logger.exception(
+                    "Frozen OCR path failed for input=%s output=%s",
+                    input_file,
+                    output_file,
+                )
                 return f"ERROR: {str(e)}"
 
         # Standard subprocess path for CLI/Dev
@@ -70,10 +87,10 @@ def ocr_pdf(input_file, output_dir=DEFAULT_OUTPUT_DIR, output_template="ocr_{nam
             "-m",
             "ocrmypdf",
             "--skip-text",
-            "--optimize", "1",
+            "-O", "1",
             "--output-type", "pdf",
-            "--jobs", str(os.cpu_count() or 2),
-            "--fast",
+            "--jobs", str(cpu_count),
+            "--tesseract-oem", "1",
         ]
 
         if password:
@@ -92,4 +109,5 @@ def ocr_pdf(input_file, output_dir=DEFAULT_OUTPUT_DIR, output_template="ocr_{nam
         return res
 
     except Exception as e:
+        logger.exception("ocr_pdf failed for input=%s", input_file)
         return f"ERROR: {str(e)}"
